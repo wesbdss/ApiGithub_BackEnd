@@ -5,6 +5,9 @@ const consumer = require('./services/consumerApi');
 /*
  * No Persistence Cache Logic
  */
+
+const serverHost = true;
+
 var timeQuery = 3600000; //miliseconds
 var cacheData = {
   "cached": [
@@ -94,7 +97,7 @@ router.get('/users', async (req, res, next) => {
       let response = await consumer(`https://api.github.com/users?since=${since}&per_page=${per_page}`);
       cacheData.cached[statusCache.position].data = response
       cacheData.cached[statusCache.position].timestamp = Date.now()
-      res.json({ response: cacheData.cached[statusCache.position].data, next: `https://api.github.com/users?since=${since + per_page}&per_page=${per_page}`, updated_at: cacheData.cached[statusCache.position].timestamp })
+      res.json({ response: cacheData.cached[statusCache.position].data, nextPage: serverHost ? `https://backendfullstackapi.herokuapp.com/api/users?since=${since + per_page}&per_page=${per_page}` : null, updated_at: cacheData.cached[statusCache.position].timestamp })
     } catch (ex) {
       console.error(ex)
       res.status(404).send({ message: 'api limite rate used' })
