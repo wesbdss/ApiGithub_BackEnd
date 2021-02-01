@@ -17,18 +17,28 @@ var cacheData = {
 
 const cache = (req, res, data) => {
 
-  const have = cacheData.cached.map((elem, i) => {
+  let positions = cacheData.cached.map((elem, i) => {
     if (elem.url == req.originalUrl) return i
-  })[0]
+  })
+
+  const have = positions[0]
+  //remove duplicates
+  if (positions.length > 1) {
+    //remove first
+    delete positions[0]
+    //delete all duplicates
+    for (x in positions) delete cacheData.cached[x]
+
+  }
 
   // verify if exists
   if (have != undefined) {
 
     //if exists verify timestamp
-    console.log(req.originalUrl+": Falta " +( (cacheData.cached[have].timestamp+timeQuery) - new Date().getTime())+" para expirar")
+    console.log(req.originalUrl + ": Falta " + ((cacheData.cached[have].timestamp + timeQuery) - new Date().getTime()) + " para expirar")
     if (new Date().getTime() > cacheData.cached[have].timestamp + timeQuery) {
       //else new request save data
-      
+
 
       return { valid: 'no', position: have }
     } else {
@@ -48,6 +58,19 @@ const cache = (req, res, data) => {
   return { valid: 'no', position: (cacheData.cached.length - 1) }
 }
 
+//check duplicates
+setInterval(() => {
+  var have = cacheData.cached.map((elem, i) => {
+    if (elem.url == req.originalUrl) return i
+  })
+  if (have.length > 1) {
+    //remove first
+    delete have[0]
+    //delete all duplicates
+    for (x in have) delete cacheData.cached[x]
+
+  }
+}, 600000)
 
 /*
  * --------------------------------
@@ -130,7 +153,7 @@ router.get('/users', async (req, res, next) => {
           updated_at: cacheData.cached[statusCache.position].timestamp,
           nextPage: (serverHost ? `https://backendfullstackapi.herokuapp.com/api/users?since=${since + per_page}&per_page=${per_page}` : null),
           previousPage: ((since - per_page) >= 0 ? `https://backendfullstackapi.herokuapp.com/api/users?since=${since - per_page}&per_page=${per_page}` : null),
-          valid:"not updated"
+          valid: "not updated"
         })
       else res.status(404).send({ message: 'api limite rate used and no have cache data' })
     }
@@ -165,7 +188,7 @@ router.get('/users/:username/details', async (req, res, next) => {
       res.json({
         response: cacheData.cached[statusCache.position].data,
         updated_at: cacheData.cached[statusCache.position].timestamp,
-        valid:"not updated"
+        valid: "not updated"
       })
     } else res.status(404).send({ message: 'api limite rate used and no have cache data' })
 
@@ -186,7 +209,7 @@ router.get('/users/:username/repos', async (req, res, next) => {
 
   //system cache
 
-  
+
   var statusCache = await cache(req, res);
   if (statusCache.valid == "yes")
     return res.json({ response: cacheData.cached[statusCache.position].data, updated_at: cacheData.cached[statusCache.position].timestamp })
@@ -202,7 +225,7 @@ router.get('/users/:username/repos', async (req, res, next) => {
       return res.json({ response: cacheData.cached[statusCache.position].data, updated_at: cacheData.cached[statusCache.position].timestamp })
 
     } else if (cacheData.cached[statusCache.position].data) {
-      res.json({ response: cacheData.cached[statusCache.position].data, updated_at: cacheData.cached[statusCache.position].timestamp ,valid:"not updated"})
+      res.json({ response: cacheData.cached[statusCache.position].data, updated_at: cacheData.cached[statusCache.position].timestamp, valid: "not updated" })
     } else res.status(404).send({ message: 'api limite rate used and no have cache data' })
 
   }
