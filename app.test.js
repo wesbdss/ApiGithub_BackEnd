@@ -42,11 +42,7 @@ describe("API Tests route /api/users/?since=:number", () => {
 
 
 
-    test("Resposta em /api/users?since=1", async () => {
-        const response = await request(app).get("/api/users?since=1");
-        expect(response.statusCode).toBe(200);
-        expect( await response.body.response.length).toBe(20);
-    });
+   
 
     test("Teste do per_page em /api/users?since=0&per_page=5", async () => {
         const response = await request(app).get("/api/users?since=0&per_page=5");
