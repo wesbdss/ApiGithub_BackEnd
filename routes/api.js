@@ -6,7 +6,7 @@ const consumer = require('./services/consumerApi');
  * No Persistence Cache Logic
  */
 
-const serverHost = true;
+const serverHost = false;
 
 var timeQuery = 3600000; //miliseconds
 var cacheData = {
@@ -29,21 +29,22 @@ const cache = (req, res, data) => {
     //delete all duplicates
     for (x in positions) delete cacheData.cached[x]
 
+    cacheData.cached = cacheData.cached.filter(elem => elem != null)
   }
+
 
   // verify if exists
   if (have != undefined) {
 
     //if exists verify timestamp
     console.log(req.originalUrl + ": Falta " + ((cacheData.cached[have].timestamp + timeQuery) - new Date().getTime()) + " para expirar")
-    if (new Date().getTime() > cacheData.cached[have].timestamp + timeQuery) {
+    if (new Date().getTime() > cacheData.cached[have].timestamp + timeQuery)
       //else new request save data
-
-
       return { valid: 'no', position: have }
-    } else {
+    else {
+      if (cacheData.cached[have].response) return { valid: 'yes', position: have }
+      else return { valid: 'no', position: have }
       //if is ok ,return
-      return { valid: 'yes', position: have }
     }
     // if not exists
     //new request save data
@@ -58,19 +59,6 @@ const cache = (req, res, data) => {
   return { valid: 'no', position: (cacheData.cached.length - 1) }
 }
 
-//check duplicates
-setInterval(() => {
-  var have = cacheData.cached.map((elem, i) => {
-    if (elem.url == req.originalUrl) return i
-  })
-  if (have.length > 1) {
-    //remove first
-    delete have[0]
-    //delete all duplicates
-    for (x in have) delete cacheData.cached[x]
-
-  }
-}, 600000)
 
 /*
  * --------------------------------
@@ -94,7 +82,7 @@ router.get('/', async (req, res, next) => {
  */
 
 router.get('/cached', (req, res, next) => {
-  res.json(cacheData);
+  res.json(cacheData.cached.map(elem => elem.url));
 })
 
 /*
@@ -130,8 +118,8 @@ router.get('/users', async (req, res, next) => {
     res.json({
       response: cacheData.cached[statusCache.position].data,
       updated_at: cacheData.cached[statusCache.position].timestamp,
-      nextPage: (serverHost ? `https://backendfullstackapi.herokuapp.com/api/users?since=${since + per_page}&per_page=${per_page}` : null),
-      previousPage: ((since - per_page) >= 0 ? `https://backendfullstackapi.herokuapp.com/api/users?since=${since - per_page}&per_page=${per_page}` : null)
+      nextPage: (serverHost ? `https://backendfullstackapi.herokuapp.com/api/users?since=${since + per_page}&per_page=${per_page}` : `https://localhost:4000/api/users?since=${since + per_page}&per_page=${per_page}`),
+      previousPage: ((since - per_page) >= 0 ? `https://backendfullstackapi.herokuapp.com/api/users?since=${since - per_page}&per_page=${per_page}` : `https://localhost:4000/api/users?since=${since + per_page}&per_page=${per_page}`)
     })
   } else {
     let response = null;
@@ -142,8 +130,8 @@ router.get('/users', async (req, res, next) => {
       cacheData.cached[statusCache.position].timestamp = new Date().getTime()
       res.json({
         response: cacheData.cached[statusCache.position].data,
-        nextPage: (serverHost ? `https://backendfullstackapi.herokuapp.com/api/users?since=${since + per_page}&per_page=${per_page}` : null),
-        previousPage: ((since - per_page) >= 0 ? `https://backendfullstackapi.herokuapp.com/api/users?since=${since - per_page}&per_page=${per_page}` : null),
+        nextPage: (serverHost ? `https://backendfullstackapi.herokuapp.com/api/users?since=${since + per_page}&per_page=${per_page}` : `https://localhost:4000/api/users?since=${since + per_page}&per_page=${per_page}`),
+        previousPage: ((since - per_page) >= 0 ? `https://backendfullstackapi.herokuapp.com/api/users?since=${since - per_page}&per_page=${per_page}` : `https://localhost:4000/api/users?since=${since + per_page}&per_page=${per_page}`),
         updated_at: cacheData.cached[statusCache.position].timestamp
       })
     } else { //if not have response, send last refresh
@@ -151,8 +139,8 @@ router.get('/users', async (req, res, next) => {
         res.json({
           response: cacheData.cached[statusCache.position].data,
           updated_at: cacheData.cached[statusCache.position].timestamp,
-          nextPage: (serverHost ? `https://backendfullstackapi.herokuapp.com/api/users?since=${since + per_page}&per_page=${per_page}` : null),
-          previousPage: ((since - per_page) >= 0 ? `https://backendfullstackapi.herokuapp.com/api/users?since=${since - per_page}&per_page=${per_page}` : null),
+          nextPage: (serverHost ? `https://backendfullstackapi.herokuapp.com/api/users?since=${since + per_page}&per_page=${per_page}` : `https://localhost:4000/api/users?since=${since + per_page}&per_page=${per_page}`),
+          previousPage: ((since - per_page) >= 0 ? `https://backendfullstackapi.herokuapp.com/api/users?since=${since - per_page}&per_page=${per_page}` : `https://localhost:4000/api/users?since=${since + per_page}&per_page=${per_page}`),
           valid: "not updated"
         })
       else res.status(404).send({ message: 'api limite rate used and no have cache data' })
