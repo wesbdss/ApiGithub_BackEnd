@@ -1,64 +1,38 @@
 var express = require('express');
 var router = express.Router();
 const consumer = require('./services/consumerApi');
+var mcache = require('memory-cache');
 
 /*
  * No Persistence Cache Logic
  */
 
-const serverHost = false;
+const serverHost = true;
 
-var timeQuery = 3600000; //miliseconds
-var cacheData = {
-  "cached": [
-  ]
-}
+var timeQuery = 3600; //miliseconds
 
+/*
+ * Cache logic
+ */
 
-const cache = (req, res, data) => {
-
-  let positions = cacheData.cached.map((elem, i) => {
-    if (elem.url == req.originalUrl) return i
-  })
-
-  const have = positions[0]
-  //remove duplicates
-  if (positions.length > 1) {
-    //remove first
-    delete positions[0]
-    //delete all duplicates
-    for (x in positions) delete cacheData.cached[x]
-
-    cacheData.cached = cacheData.cached.filter(elem => elem != null)
-  }
-
-
-  // verify if exists
-  if (have != undefined) {
-
-    //if exists verify timestamp
-    console.log(req.originalUrl + ": Falta " + ((cacheData.cached[have].timestamp + timeQuery) - new Date().getTime()) + " para expirar")
-    if (new Date().getTime() > cacheData.cached[have].timestamp + timeQuery)
-      //else new request save data
-      return { valid: 'no', position: have }
-    else {
-      if (cacheData.cached[have].response) return { valid: 'yes', position: have }
-      else return { valid: 'no', position: have }
-      //if is ok ,return
+var cache = (duration) => {
+  return (req, res, next) => {
+    let key = '__express__' + req.originalUrl || req.url
+    let cachedBody = mcache.get(key)
+    if (cachedBody) {
+      res.send(cachedBody)
+      return
+    } else {
+      res.sendResponse = res.send
+      res.send = (body) => {
+        mcache.put(key, body, duration * 1000);
+        res.sendResponse(body)
+        return
+      }
+      next()
     }
-    // if not exists
-    //new request save data
   }
-  cacheData.cached.push(
-    {
-      "url": req.originalUrl,
-      "data": null,
-      "timestamp": new Date().getTime()
-    }
-  )
-  return { valid: 'no', position: (cacheData.cached.length - 1) }
 }
-
 
 /*
  * --------------------------------
@@ -77,25 +51,13 @@ router.get('/', async (req, res, next) => {
  * --------------------------------
  */
 
-/*
- * Return all Cached links and Datas
- */
-
-router.get('/cached', (req, res, next) => {
-  res.json(cacheData.cached.map(elem => elem.url));
-})
-
-/*
- * --------------------------------
- */
-
 
 
 /*
  * List users of github with since and per_page
  */
 
-router.get('/users', async (req, res, next) => {
+router.get('/users', cache(timeQuery), async (req, res, next) => {
 
   //Check params
 
@@ -111,48 +73,29 @@ router.get('/users', async (req, res, next) => {
     else return res.status(400).send({ message: "parameter per_page incorrect" })
   }
 
-  //system cache
 
-  var statusCache = await cache(req, res);
-  if (statusCache.valid == "yes") {
-    res.json({
-      response: cacheData.cached[statusCache.position].data,
-      updated_at: cacheData.cached[statusCache.position].timestamp,
-      nextPage: (serverHost ? `https://backendfullstackapi.herokuapp.com/api/users?since=${since + per_page}&per_page=${per_page}` : `https://localhost:4000/api/users?since=${since + per_page}&per_page=${per_page}`),
-      previousPage: ((since - per_page) >= 0 ? `https://backendfullstackapi.herokuapp.com/api/users?since=${since - per_page}&per_page=${per_page}` : `https://localhost:4000/api/users?since=${since + per_page}&per_page=${per_page}`)
-    })
-  } else {
-    let response = null;
-    try { response = await consumer(`https://api.github.com/users?since=${since}&per_page=${per_page}`); } catch (ex) { console.error(ex) }
-
-    if (response) { //if have response, refresh
-      cacheData.cached[statusCache.position].data = response
-      cacheData.cached[statusCache.position].timestamp = new Date().getTime()
-      res.json({
-        response: cacheData.cached[statusCache.position].data,
-        nextPage: (serverHost ? `https://backendfullstackapi.herokuapp.com/api/users?since=${since + per_page}&per_page=${per_page}` : `https://localhost:4000/api/users?since=${since + per_page}&per_page=${per_page}`),
-        previousPage: ((since - per_page) >= 0 ? `https://backendfullstackapi.herokuapp.com/api/users?since=${since - per_page}&per_page=${per_page}` : `https://localhost:4000/api/users?since=${since + per_page}&per_page=${per_page}`),
-        updated_at: cacheData.cached[statusCache.position].timestamp
-      })
-    } else { //if not have response, send last refresh
-      if (cacheData.cached[statusCache.position].data)
-        res.json({
-          response: cacheData.cached[statusCache.position].data,
-          updated_at: cacheData.cached[statusCache.position].timestamp,
-          nextPage: (serverHost ? `https://backendfullstackapi.herokuapp.com/api/users?since=${since + per_page}&per_page=${per_page}` : `https://localhost:4000/api/users?since=${since + per_page}&per_page=${per_page}`),
-          previousPage: ((since - per_page) >= 0 ? `https://backendfullstackapi.herokuapp.com/api/users?since=${since - per_page}&per_page=${per_page}` : `https://localhost:4000/api/users?since=${since + per_page}&per_page=${per_page}`),
-          valid: "not updated"
-        })
-      else res.status(404).send({ message: 'api limite rate used and no have cache data' })
-    }
-
+  let response;
+  try {
+    response = await consumer(`https://api.github.com/users?since=${since}&per_page=${per_page}`);
+  } catch (ex) {
+    console.error(ex);
+    res.status(404).send({ message: 'api limite rate used and no have cache data' })
+    return
   }
+
+  res.json({
+    response: response,
+    nextPage: (serverHost ? `https://backendfullstackapi.herokuapp.com/api/users?since=${since + per_page}&per_page=${per_page}` : `https://localhost:4000/api/users?since=${since + per_page}&per_page=${per_page}`),
+    previousPage: ((since - per_page) >= 0 ? `https://backendfullstackapi.herokuapp.com/api/users?since=${since - per_page}&per_page=${per_page}` : `https://localhost:4000/api/users?since=${since + per_page}&per_page=${per_page}`),
+    updated_at: new Date().getTime()
+  })
+
 })
 
 /*
  * Show details of users github
  */
-router.get('/users/:username/details', async (req, res, next) => {
+router.get('/users/:username/details', cache(timeQuery), async (req, res, next) => {
 
   //params Check
   var username = "";
@@ -160,27 +103,20 @@ router.get('/users/:username/details', async (req, res, next) => {
     username = req.params.username
   } else return res.status(400).send({ message: 'missing params username' })
 
-  //system cache
 
-  var statusCache = await cache(req, res);
-  if (statusCache.valid == "yes")
-    return res.json({ response: cacheData.cached[statusCache.position].data, updated_at: cacheData.cached[statusCache.position].timestamp })
-  else {
-    let response;
-    try { response = await consumer('https://api.github.com/users/' + username) } catch (ex) { console.error(ex); }
-    if (response) {
-      cacheData.cached[statusCache.position].data = response
-      cacheData.cached[statusCache.position].timestamp = new Date().getTime()
-      return res.json({ response: cacheData.cached[statusCache.position].data, updated_at: cacheData.cached[statusCache.position].timestamp })
-    } else if (cacheData.cached[statusCache.position].data) {
-      res.json({
-        response: cacheData.cached[statusCache.position].data,
-        updated_at: cacheData.cached[statusCache.position].timestamp,
-        valid: "not updated"
-      })
-    } else res.status(404).send({ message: 'api limite rate used and no have cache data' })
-
+  let response;
+  try {
+    response = await consumer('https://api.github.com/users/' + username)
+  } catch (ex) {
+    console.error(ex);
+    res.status(404).send({ message: 'api limite rate used and no have cache data' })
+    return
   }
+  return res.json({
+    response: response,
+    updated_at: new Date().getTime()
+  })
+
 })
 
 
@@ -188,35 +124,27 @@ router.get('/users/:username/details', async (req, res, next) => {
 /*
  * Show repositorys of users github
  */
-router.get('/users/:username/repos', async (req, res, next) => {
+router.get('/users/:username/repos', cache(timeQuery), async (req, res, next) => {
   var username = "";
   if (req.params.username != undefined) {
     username = req.params.username
   } else return res.status(400).send({ message: 'missing params username' })
 
 
-  //system cache
 
-
-  var statusCache = await cache(req, res);
-  if (statusCache.valid == "yes")
-    return res.json({ response: cacheData.cached[statusCache.position].data, updated_at: cacheData.cached[statusCache.position].timestamp })
-  else {
-    let response;
-    try {
-      response = await consumer('https://api.github.com/users/' + username + '/repos')
-    } catch (ex) { console.log(ex) }
-
-    if (response) {
-      cacheData.cached[statusCache.position].data = response
-      cacheData.cached[statusCache.position].timestamp = new Date().getTime()
-      return res.json({ response: cacheData.cached[statusCache.position].data, updated_at: cacheData.cached[statusCache.position].timestamp })
-
-    } else if (cacheData.cached[statusCache.position].data) {
-      res.json({ response: cacheData.cached[statusCache.position].data, updated_at: cacheData.cached[statusCache.position].timestamp, valid: "not updated" })
-    } else res.status(404).send({ message: 'api limite rate used and no have cache data' })
-
+  let response;
+  try {
+    response = await consumer('https://api.github.com/users/' + username + '/repos')
+  } catch (ex) {
+    console.log(ex)
+    res.status(404).send({ message: 'api limite rate used and no have cache data' })
+    return
   }
+
+  return res.json({
+    response: response,
+    updated_at: new Date().getTime()
+  })
 })
 
 module.exports = router;

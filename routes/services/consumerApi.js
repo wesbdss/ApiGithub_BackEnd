@@ -2,6 +2,7 @@
 const fetch = require('node-fetch');
 
 module.exports = async (endpoint, method = 'GET', content = null) => {
+  console.log("Pediu Request")
   let response;
   if (method != 'GET') {
     response = await fetch(endpoint, {
