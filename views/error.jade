@@ -1,0 +1,11 @@
+extends layout
+
+block content
+
+  div(style="width:auto;display:flex;justify-content:center;flex-direction:column")
+    h1(style="margin-left:auto;margin-right:auto;")="Ops ocorreu um erro!"
+    img(src="https://i.gifer.com/SvSi.gif" alt='Avatar')
+  div(style="word-wrap:break-word;")
+    h1= message
+    h2= error.status
+    pre #{error.stack}

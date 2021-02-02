@@ -1,0 +1,39 @@
+{
+  "name": "express-cache-controller",
+  "version": "1.1.0",
+  "description": "Middleware for meddling with Cache-Control headers",
+  "main": "index.js",
+  "scripts": {
+    "test": "mocha",
+    "lint": "eslint .",
+    "coverage": "istanbul cover _mocha -- -R dot"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/DaMouse404/express-cache-controller"
+  },
+  "keywords": [
+    "express",
+    "max-age",
+    "maxage",
+    "cache",
+    "cache-control",
+    "no-cache"
+  ],
+  "author": "Christopher Sidebottom",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/DaMouse404/express-cache-controller/issues"
+  },
+  "devDependencies": {
+    "eslint": "^3.1.1",
+    "express": "^4.13.4",
+    "istanbul": "^0.4.3",
+    "mocha": "^3.0.2",
+    "supertest": "^2.0.0"
+  },
+  "dependencies": {
+    "lodash.isnumber": "^3.0.3",
+    "on-headers": "^1.0.1"
+  }
+}
